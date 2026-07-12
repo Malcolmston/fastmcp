@@ -1,1 +1,25 @@
+# Binaries
+fastmcp
+example
+*.exe
 *.o
+*.out
+
+# Test cache
+*.test
+*.prof
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+
+# Module cache
+vendor/
+
+# Node (web/ tooling, added later)
+node_modules/
+dist/
+playwright-report/
+test-results/
+coverage/

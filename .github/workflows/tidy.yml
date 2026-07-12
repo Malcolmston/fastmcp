@@ -1,0 +1,28 @@
+name: Tidy
+
+# Keeps go.mod / go.sum honest: fails if `go mod tidy` would change anything
+# and verifies the module cache against recorded checksums.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: go mod tidy is a no-op
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: go mod verify
+        run: go mod verify

@@ -1,0 +1,24 @@
+name: Vulncheck
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore: ["web/**", "**.md"]
+  pull_request:
+    paths-ignore: ["web/**", "**.md"]
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache: true }
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

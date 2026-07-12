@@ -1,0 +1,70 @@
+name: Go tests
+
+# The Go test suite, split into granular stages: format → vet → build gate the
+# race+coverage run. Coverage is scoped to library packages (examples is a
+# runnable demo, not library code). Skips web-only and docs-only changes.
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["web/**", "**.md"]
+  pull_request:
+    paths-ignore: ["web/**", "**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache: true }
+      - name: gofmt (check)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "not gofmt-ed:"; echo "$unformatted"; exit 1; fi
+
+  vet:
+    name: go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache: true }
+      - run: go vet ./...
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache: true }
+      - run: go build ./...
+
+  test:
+    name: test · race · coverage (go ${{ matrix.go }})
+    needs: [fmt, vet, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "${{ matrix.go }}", cache: true }
+      - name: Test (race) + coverage — library packages only
+        run: |
+          pkgs="$(go list ./... | grep -vE '/examples')"
+          go test -race -covermode=atomic -coverprofile=coverage.out $pkgs
+      - name: Coverage total
+        run: go tool cover -func=coverage.out | tail -n1
+      - name: Upload coverage
+        if: matrix.go == '1.24'
+        uses: actions/upload-artifact@v4
+        with: { name: coverage, path: coverage.out }

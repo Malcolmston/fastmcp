@@ -1,0 +1,23 @@
+name: Lint
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["web/**", "**.md"]
+  pull_request:
+    paths-ignore: ["web/**", "**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache: true }
+      - uses: golangci/golangci-lint-action@v7
+        with: { version: v2.5.0 }

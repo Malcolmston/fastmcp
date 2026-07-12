@@ -2,6 +2,7 @@ package fastmcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 )
@@ -26,8 +27,8 @@ func (s *Server) Dispatch(c *Context) *Response {
 func (s *Server) route(c *Context, method string, params json.RawMessage) (any, *Error) {
 	switch method {
 	case "initialize":
-		return s.handleInitialize(), nil
-	case "notifications/initialized", "notifications/cancelled":
+		return s.handleInitialize(params), nil
+	case "notifications/initialized", "notifications/cancelled", "notifications/progress":
 		return nil, nil
 	case "ping":
 		return map[string]any{}, nil
@@ -41,36 +42,56 @@ func (s *Server) route(c *Context, method string, params json.RawMessage) (any, 
 		return s.handleResourceTemplatesList(), nil
 	case "resources/read":
 		return s.handleResourcesRead(c, params)
+	case "resources/subscribe":
+		return s.handleSubscribe(c, params)
+	case "resources/unsubscribe":
+		return s.handleUnsubscribe(c, params)
 	case "prompts/list":
 		return s.handlePromptsList(), nil
 	case "prompts/get":
 		return s.handlePromptsGet(c, params)
+	case "completion/complete":
+		return s.handleComplete(c, params)
 	default:
 		return nil, newError(ErrMethodNotFound, fmt.Sprintf("method not found: %s", method))
 	}
 }
 
-// handleInitialize builds the initialize result, advertising only the
-// capabilities that have registered handlers.
-func (s *Server) handleInitialize() any {
+// handleInitialize builds the initialize result. It echoes the client's
+// requested protocolVersion when one is supplied (falling back to the version
+// this package implements) and advertises the capabilities that have registered
+// handlers, now including list-changed notifications, resource subscription, and
+// argument completion.
+func (s *Server) handleInitialize(params json.RawMessage) any {
+	protocol := ProtocolVersion
+	if len(params) > 0 {
+		var p struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		if err := json.Unmarshal(params, &p); err == nil && p.ProtocolVersion != "" {
+			protocol = p.ProtocolVersion
+		}
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	capabilities := map[string]any{
-		"logging": map[string]any{},
+		"logging":     map[string]any{},
+		"completions": map[string]any{},
 	}
 	if len(s.tools) > 0 {
-		capabilities["tools"] = map[string]any{"listChanged": false}
+		capabilities["tools"] = map[string]any{"listChanged": true}
 	}
 	if len(s.resources) > 0 || len(s.templates) > 0 {
-		capabilities["resources"] = map[string]any{"listChanged": false, "subscribe": false}
+		capabilities["resources"] = map[string]any{"listChanged": true, "subscribe": true}
 	}
 	if len(s.prompts) > 0 {
-		capabilities["prompts"] = map[string]any{"listChanged": false}
+		capabilities["prompts"] = map[string]any{"listChanged": true}
 	}
 
 	result := map[string]any{
-		"protocolVersion": ProtocolVersion,
+		"protocolVersion": protocol,
 		"capabilities":    capabilities,
 		"serverInfo": map[string]any{
 			"name":    s.name,
@@ -91,11 +112,15 @@ func (s *Server) handleToolsList() any {
 	tools := make([]map[string]any, 0, len(s.toolOrder))
 	for _, name := range s.toolOrder {
 		t := s.tools[name]
-		tools = append(tools, map[string]any{
+		entry := map[string]any{
 			"name":        t.name,
 			"description": t.description,
 			"inputSchema": t.inputSchema,
-		})
+		}
+		if t.outputSchema != nil {
+			entry["outputSchema"] = t.outputSchema
+		}
+		tools = append(tools, entry)
 	}
 	return map[string]any{"tools": tools}
 }
@@ -127,9 +152,15 @@ func (s *Server) handleToolsCall(c *Context, params json.RawMessage) (any, *Erro
 			"isError": true,
 		}, nil
 	}
-	return map[string]any{
+	out := map[string]any{
 		"content": toContent(result),
-	}, nil
+	}
+	// When the tool declares an output schema, also surface the raw value as
+	// structuredContent alongside the text content for backward compatibility.
+	if tool.structured && result != nil {
+		out["structuredContent"] = result
+	}
+	return out, nil
 }
 
 // handleResourcesList returns the resources/list result in registration order.
@@ -185,33 +216,91 @@ func (s *Server) handleResourcesRead(c *Context, params json.RawMessage) (any, *
 	s.mu.RUnlock()
 
 	if ok {
+		if static.blobHandler != nil {
+			blob, err := static.blobHandler(ctxFor(c))
+			if err != nil {
+				return nil, newError(ErrInternal, err.Error())
+			}
+			return resourceBlobContents(p.URI, static.mimeType, blob), nil
+		}
 		text, err := static.handler(ctxFor(c))
 		if err != nil {
 			return nil, newError(ErrInternal, err.Error())
 		}
-		return resourceContents(p.URI, static.mimeType, text), nil
+		return resourceTextContents(p.URI, static.mimeType, text), nil
 	}
 
 	for _, t := range templates {
 		if vars, matched := t.match(p.URI); matched {
+			if t.blobHandler != nil {
+				blob, err := t.blobHandler(ctxFor(c), vars)
+				if err != nil {
+					return nil, newError(ErrInternal, err.Error())
+				}
+				return resourceBlobContents(p.URI, t.mimeType, blob), nil
+			}
 			text, err := t.handler(ctxFor(c), vars)
 			if err != nil {
 				return nil, newError(ErrInternal, err.Error())
 			}
-			return resourceContents(p.URI, t.mimeType, text), nil
+			return resourceTextContents(p.URI, t.mimeType, text), nil
 		}
 	}
 
 	return nil, newError(ErrInvalidParams, fmt.Sprintf("unknown resource: %s", p.URI))
 }
 
-// resourceContents wraps resource text in the resources/read result envelope.
-func resourceContents(uri, mimeType, text string) any {
+// resourceTextContents wraps textual resource contents in the resources/read
+// result envelope.
+func resourceTextContents(uri, mimeType, text string) any {
 	return map[string]any{
 		"contents": []map[string]any{
 			{"uri": uri, "mimeType": mimeType, "text": text},
 		},
 	}
+}
+
+// resourceBlobContents wraps binary resource contents, base64-encoding the bytes
+// into the "blob" field per the MCP resource contents schema. Image resources
+// are represented this way with an image/* mimeType.
+func resourceBlobContents(uri, mimeType string, blob []byte) any {
+	return map[string]any{
+		"contents": []map[string]any{
+			{"uri": uri, "mimeType": mimeType, "blob": base64.StdEncoding.EncodeToString(blob)},
+		},
+	}
+}
+
+// subscribeParams is the parameter object for resources/subscribe and
+// resources/unsubscribe.
+type subscribeParams struct {
+	URI string `json:"uri"`
+}
+
+// handleSubscribe records a client's interest in updates to a resource URI.
+// Subsequent [Server.NotifyResourceUpdated] calls deliver
+// notifications/resources/updated to the subscriber.
+func (s *Server) handleSubscribe(c *Context, params json.RawMessage) (any, *Error) {
+	var p subscribeParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, newError(ErrInvalidParams, err.Error())
+	}
+	if c != nil && c.conn != nil {
+		c.conn.subscribe(p.URI)
+	}
+	return map[string]any{}, nil
+}
+
+// handleUnsubscribe cancels a prior resources/subscribe.
+func (s *Server) handleUnsubscribe(c *Context, params json.RawMessage) (any, *Error) {
+	var p subscribeParams
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil, newError(ErrInvalidParams, err.Error())
+	}
+	if c != nil && c.conn != nil {
+		c.conn.unsubscribe(p.URI)
+	}
+	return map[string]any{}, nil
 }
 
 // getPromptParams is the parameter object for prompts/get.

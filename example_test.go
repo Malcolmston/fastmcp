@@ -33,9 +33,13 @@ func ExampleServer_ServeStdio() {
 		return
 	}
 
-	// The second line is the tools/call response.
-	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	fmt.Println(lines[1])
+	// Requests are dispatched concurrently, so responses may arrive in any
+	// order; select the tools/call reply (id 2) by its content.
+	for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		if strings.Contains(line, `"id":2`) {
+			fmt.Println(line)
+		}
+	}
 
 	// Output:
 	// {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5"}]}}

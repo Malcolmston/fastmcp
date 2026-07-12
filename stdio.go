@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"sync"
 )
 
 // Run serves the newline-delimited JSON-RPC stdio transport over os.Stdin and
@@ -20,16 +19,18 @@ func (s *Server) Run(ctx context.Context) error {
 // input line is a single JSON-RPC message; each response is written as one line.
 // Writes are serialized so that responses and asynchronous notifications never
 // interleave.
+//
+// The transport is bidirectional: it correlates responses to server-initiated
+// requests (such as sampling/createMessage and roots/list) and dispatches each
+// inbound request on its own goroutine, so a handler blocked awaiting a
+// server-to-client response does not stall the read loop. ServeStdio blocks
+// until stdin reaches EOF or ctx is cancelled and waits for in-flight handlers
+// to finish before returning.
 func (s *Server) ServeStdio(ctx context.Context, r io.Reader, w io.Writer) error {
-	var mu sync.Mutex
-	enc := json.NewEncoder(w)
-
-	writeJSON := func(v any) error {
-		mu.Lock()
-		defer mu.Unlock()
-		return enc.Encode(v)
-	}
-	send := func(n Notification) error { return writeJSON(n) }
+	sess := s.newSession(ctx, w, true)
+	s.addSession(sess)
+	defer s.removeSession(sess)
+	defer sess.wg.Wait()
 
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
@@ -45,13 +46,10 @@ func (s *Server) ServeStdio(ctx context.Context, r io.Reader, w io.Writer) error
 		if len(trimSpace(line)) == 0 {
 			continue
 		}
-
-		resp := s.handleLine(ctx, line, send)
-		if resp != nil {
-			if err := writeJSON(resp); err != nil {
-				return err
-			}
-		}
+		// Copy: the scanner reuses its buffer and handlers run concurrently.
+		buf := make([]byte, len(line))
+		copy(buf, line)
+		sess.handle(buf)
 	}
 	return scanner.Err()
 }

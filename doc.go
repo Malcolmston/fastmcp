@@ -68,6 +68,49 @@
 // [Server.HTTPHandler] returns an [net/http.Handler] implementing the
 // Streamable HTTP transport (JSON-RPC over POST, with an optional SSE GET
 // stream), and [Server.ServeHTTP] is a convenience that binds it to an address.
+// The stdio transport is bidirectional and correlates server-initiated requests
+// with their responses.
+//
+// # Progress, list-changed and subscriptions
+//
+// Handlers report incremental progress with [Context.Progress], which emits a
+// notifications/progress correlated with the caller's progress token. The server
+// broadcasts capability changes with [Server.NotifyToolsChanged],
+// [Server.NotifyResourcesChanged], and [Server.NotifyPromptsChanged]. Clients
+// may subscribe to a resource with resources/subscribe; a subsequent
+// [Server.NotifyResourceUpdated] delivers notifications/resources/updated to the
+// subscribers.
+//
+// # Completion
+//
+// Register a [CompletionFunc] with [Server.CompletePrompt] or
+// [Server.CompleteResourceTemplate] to answer completion/complete requests for a
+// prompt argument or resource-template variable.
+//
+// # Structured tool output
+//
+// [Server.ToolWithOutput] reflects a JSON output schema from the handler's
+// (struct) return type; each call then returns that value in the response's
+// structuredContent field alongside the usual text content.
+//
+// # Binary resources
+//
+// [Server.BinaryResource] and [Server.BinaryResourceTemplate] serve raw bytes
+// (base64-encoded blob resource contents), for images and other non-textual
+// data.
+//
+// # Sampling and roots
+//
+// Over a bidirectional transport, [Context.CreateMessage] asks the connected
+// client to sample a completion (sampling/createMessage) and [Context.ListRoots]
+// queries the client's roots.
+//
+// # Client
+//
+// The subpackage github.com/malcolmston/fastmcp/client provides an MCP client
+// that connects over stdio (attached streams or a spawned process) or Streamable
+// HTTP, correlates JSON-RPC ids, answers server sampling and roots requests, and
+// delivers server notifications.
 //
 // The framework depends only on the Go standard library.
 package fastmcp

@@ -14,13 +14,23 @@ type ResourceHandler func(ctx context.Context) (string, error)
 // template.
 type ResourceTemplateHandler func(ctx context.Context, params map[string]string) (string, error)
 
-// resourceEntry is the internal representation of a static resource.
+// BinaryResourceHandler reads a static resource and returns its raw bytes, which
+// FastMCP base64-encodes into a blob resource content. Use it for images and
+// other non-textual data.
+type BinaryResourceHandler func(ctx context.Context) ([]byte, error)
+
+// BinaryResourceTemplateHandler reads a templated binary resource.
+type BinaryResourceTemplateHandler func(ctx context.Context, params map[string]string) ([]byte, error)
+
+// resourceEntry is the internal representation of a static resource. Exactly one
+// of handler (text) or blobHandler (binary) is set.
 type resourceEntry struct {
 	uri         string
 	name        string
 	description string
 	mimeType    string
 	handler     ResourceHandler
+	blobHandler BinaryResourceHandler
 }
 
 // resourceTemplateEntry is the internal representation of a templated resource.
@@ -32,6 +42,8 @@ type resourceTemplateEntry struct {
 	re          *regexp.Regexp
 	params      []string
 	handler     ResourceTemplateHandler
+	blobHandler BinaryResourceTemplateHandler
+	completer   CompletionFunc
 }
 
 // Resource registers a static resource identified by a fixed URI. The handler is
@@ -66,6 +78,42 @@ func (s *Server) ResourceTemplate(uriTemplate, name, description, mimeType strin
 		re:          re,
 		params:      params,
 		handler:     handler,
+	})
+}
+
+// BinaryResource registers a static binary resource identified by a fixed URI.
+// The handler returns raw bytes that are base64-encoded into a blob resource
+// content. It is the binary counterpart of [Server.Resource]; use it for images
+// (with an image/* mimeType) and other non-textual data.
+func (s *Server) BinaryResource(uri, name, description, mimeType string, handler BinaryResourceHandler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.resources[uri]; !exists {
+		s.resourceOrder = append(s.resourceOrder, uri)
+	}
+	s.resources[uri] = &resourceEntry{
+		uri:         uri,
+		name:        name,
+		description: description,
+		mimeType:    mimeType,
+		blobHandler: handler,
+	}
+}
+
+// BinaryResourceTemplate registers a parameterized binary resource, the binary
+// counterpart of [Server.ResourceTemplate].
+func (s *Server) BinaryResourceTemplate(uriTemplate, name, description, mimeType string, handler BinaryResourceTemplateHandler) {
+	re, params := compileURITemplate(uriTemplate)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.templates = append(s.templates, &resourceTemplateEntry{
+		template:    uriTemplate,
+		name:        name,
+		description: description,
+		mimeType:    mimeType,
+		re:          re,
+		params:      params,
+		blobHandler: handler,
 	})
 }
 

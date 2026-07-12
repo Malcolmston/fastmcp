@@ -26,6 +26,7 @@ type promptEntry struct {
 	description string
 	arguments   []PromptArgument
 	handler     PromptHandler
+	completer   CompletionFunc
 }
 
 // Prompt registers a reusable prompt template. The optional args describe the

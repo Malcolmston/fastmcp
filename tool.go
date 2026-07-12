@@ -15,10 +15,12 @@ var (
 
 // toolEntry is the internal representation of a registered tool.
 type toolEntry struct {
-	name        string
-	description string
-	inputSchema map[string]any
-	call        func(*Context, json.RawMessage) (any, error)
+	name         string
+	description  string
+	inputSchema  map[string]any
+	outputSchema map[string]any // non-nil when the tool declares structured output
+	structured   bool
+	call         func(*Context, json.RawMessage) (any, error)
 }
 
 // Tool registers a callable tool. The handler must be a function of one of the
@@ -33,10 +35,30 @@ type toolEntry struct {
 // JSON-encoded. Tool panics if the handler does not match a supported shape, so
 // registration errors surface immediately at startup.
 func (s *Server) Tool(name, description string, handler any) {
-	entry, err := buildToolEntry(name, description, handler)
+	entry, err := buildToolEntry(name, description, handler, false)
 	if err != nil {
 		panic(fmt.Sprintf("fastmcp: Tool(%q): %v", name, err))
 	}
+	s.registerTool(name, entry)
+}
+
+// ToolWithOutput registers a tool exactly like [Server.Tool] but additionally
+// reflects a JSON output schema from the handler's non-error return type, which
+// must be a struct (or pointer to struct). Such a tool advertises its
+// outputSchema in tools/list and, on each call, returns the handler's value in
+// the response's structuredContent field alongside the usual text content — so
+// clients that understand structured output can consume the typed value while
+// older clients still receive text.
+func (s *Server) ToolWithOutput(name, description string, handler any) {
+	entry, err := buildToolEntry(name, description, handler, true)
+	if err != nil {
+		panic(fmt.Sprintf("fastmcp: ToolWithOutput(%q): %v", name, err))
+	}
+	s.registerTool(name, entry)
+}
+
+// registerTool inserts a built tool entry, preserving registration order.
+func (s *Server) registerTool(name string, entry *toolEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, exists := s.tools[name]; !exists {
@@ -46,8 +68,9 @@ func (s *Server) Tool(name, description string, handler any) {
 }
 
 // buildToolEntry validates a handler and produces its tool entry, including the
-// reflected input schema and an invocation closure.
-func buildToolEntry(name, description string, handler any) (*toolEntry, error) {
+// reflected input schema and an invocation closure. When reflectOutput is true,
+// the handler's non-error return type is also reflected into an output schema.
+func buildToolEntry(name, description string, handler any, reflectOutput bool) (*toolEntry, error) {
 	fn := reflect.ValueOf(handler)
 	ft := fn.Type()
 	if ft.Kind() != reflect.Func {
@@ -80,6 +103,22 @@ func buildToolEntry(name, description string, handler any) (*toolEntry, error) {
 		return nil, err
 	}
 
+	var outputSchema map[string]any
+	structured := false
+	if reflectOutput {
+		if outT := resultOutType(ft); outT != nil {
+			bt := outT
+			for bt.Kind() == reflect.Ptr {
+				bt = bt.Elem()
+			}
+			if bt.Kind() != reflect.Struct {
+				return nil, fmt.Errorf("ToolWithOutput handler must return a struct (or *struct), got %s", outT)
+			}
+			outputSchema = reflectStructSchema(outT)
+			structured = true
+		}
+	}
+
 	call := func(c *Context, raw json.RawMessage) (any, error) {
 		argPtr := reflect.New(argT) // *ArgT
 		if len(raw) > 0 && string(raw) != "null" {
@@ -92,11 +131,25 @@ func buildToolEntry(name, description string, handler any) (*toolEntry, error) {
 	}
 
 	return &toolEntry{
-		name:        name,
-		description: description,
-		inputSchema: schema,
-		call:        call,
+		name:         name,
+		description:  description,
+		inputSchema:  schema,
+		outputSchema: outputSchema,
+		structured:   structured,
+		call:         call,
 	}, nil
+}
+
+// resultOutType returns the handler's non-error return type, or nil when the
+// handler returns only an error.
+func resultOutType(ft reflect.Type) reflect.Type {
+	for i := 0; i < ft.NumOut(); i++ {
+		if ft.Out(i).Implements(errType) {
+			continue
+		}
+		return ft.Out(i)
+	}
+	return nil
 }
 
 // validateOutputs ensures a handler returns a supported result signature: either

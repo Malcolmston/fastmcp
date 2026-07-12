@@ -75,6 +75,26 @@ The server speaks newline-delimited JSON-RPC on stdin/stdout. Send it an
   reusable prompt templates.
 - **stdio + HTTP transports** — run over stdin/stdout or the MCP Streamable
   HTTP transport (POST for messages, GET/SSE for the server-to-client channel).
+  The stdio transport is fully bidirectional.
+- **MCP client** — a companion [`client`](client) package connects to any MCP
+  server over stdio (attached streams or a spawned subprocess) or Streamable
+  HTTP: `Initialize`, `ListTools`, `CallTool`, `ListResources`, `ReadResource`,
+  `ListPrompts`, `GetPrompt`, `Ping`, and more.
+- **Progress notifications** — handlers report incremental progress with
+  `Context.Progress`, correlated with the caller's progress token.
+- **List-changed & subscriptions** — broadcast `notifications/*/list_changed`
+  with `NotifyToolsChanged` / `NotifyResourcesChanged` / `NotifyPromptsChanged`,
+  and deliver `notifications/resources/updated` to `resources/subscribe`rs via
+  `NotifyResourceUpdated`.
+- **Completion** — answer `completion/complete` for prompt arguments and
+  resource-template variables with a registerable callback.
+- **Structured tool output** — `ToolWithOutput` reflects an output schema from
+  the handler's return type and emits `structuredContent` alongside text.
+- **Binary & image resources** — `BinaryResource` serves base64 `blob`
+  contents, not just text.
+- **Sampling & roots** — over a bidirectional transport, `Context.CreateMessage`
+  asks the client to sample a completion and `Context.ListRoots` queries the
+  client's roots.
 - **Reflection-based schemas** — a tool's JSON input schema is generated from
   its Go argument struct via reflection and `json` / `jsonschema` struct tags,
   so you never hand-write schemas.
@@ -136,7 +156,37 @@ s.ServeHTTP(":8080")
 
 `POST` carries a single JSON-RPC message or a batch array and returns an
 `application/json` response (notifications get `202 Accepted`). `GET` opens a
-`text/event-stream` (SSE) channel for server-initiated messages.
+`text/event-stream` (SSE) channel for server-initiated messages, including
+list-changed and resource-updated notifications.
+
+## Client
+
+The [`client`](client) package talks to any MCP server. Connect over stdio
+(attach to a reader/writer pair or spawn a subprocess) or Streamable HTTP:
+
+```go
+import "github.com/malcolmston/fastmcp/client"
+
+// Spawn a server process and talk to it over its stdio.
+c, err := client.NewCommand(ctx, "./my-mcp-server", nil)
+if err != nil {
+	log.Fatal(err)
+}
+defer c.Close()
+
+if _, err := c.Initialize(ctx); err != nil {
+	log.Fatal(err)
+}
+
+tools, _ := c.ListTools(ctx)
+res, _ := c.CallTool(ctx, "add", map[string]any{"a": 2, "b": 3})
+fmt.Println(res.Content[0].Text) // "5"
+```
+
+Over the bidirectional stdio transport the client answers the server's
+`sampling/createMessage` and `roots/list` requests via
+`client.WithSamplingHandler` and `client.WithRoots` / `client.WithRootsHandler`,
+and receives server notifications through `client.WithNotificationHandler`.
 
 ## Documentation
 

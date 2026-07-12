@@ -3,8 +3,10 @@ package fastmcp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"sync"
 )
 
 // HTTPHandler returns an http.Handler implementing the MCP Streamable HTTP
@@ -90,9 +92,12 @@ func (s *Server) handleHTTPBatch(w http.ResponseWriter, r *http.Request, body []
 	writeJSONResponse(w, responses)
 }
 
-// handleHTTPGet opens a minimal SSE stream that remains open until the client
+// handleHTTPGet opens an SSE stream that remains open until the client
 // disconnects. It provides the server-to-client channel of the Streamable HTTP
-// transport.
+// transport: the connection is registered as a notification-only session so that
+// list-changed and resource-updated broadcasts are delivered as SSE events. This
+// channel does not carry server-to-client requests, so sampling and roots are
+// unavailable over HTTP.
 func (s *Server) handleHTTPGet(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -105,7 +110,25 @@ func (s *Server) handleHTTPGet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	// Hold the connection open; nothing is pushed in this minimal implementation.
+	var mu sync.Mutex
+	write := func(v any) error {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+	sess := s.newSessionWithWriter(r.Context(), write, false)
+	s.addSession(sess)
+	defer s.removeSession(sess)
+
+	// Hold the connection open until the client disconnects.
 	<-r.Context().Done()
 }
 

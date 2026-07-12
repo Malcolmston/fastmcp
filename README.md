@@ -141,7 +141,7 @@ s.ServeHTTP(":8080")
 ## Documentation
 
 - Full API reference on [pkg.go.dev](https://pkg.go.dev/github.com/malcolmston/fastmcp).
-- Docs site (forthcoming): <https://malcolmston.github.io/fastmcp/>.
+- Docs site: <https://malcolmston.github.io/fastmcp/>.
 
 ## License
 

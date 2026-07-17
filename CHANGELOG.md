@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-17
+### Added
+- Eight framework subpackages mirroring Python FastMCP 2.x, each
+  standard-library-only and importing only the root `fastmcp` package (plus at
+  most one sibling), with full godoc, deterministic tests and runnable examples:
+  - `auth` — token-based authentication. A small `TokenVerifier` interface turns
+    a bearer token into a validated `AccessToken` (subject, scopes, expiry);
+    ships `StaticTokenVerifier` and a `JWTVerifier` (HS256 + RS256 with local
+    keys or a remote JWKS). `BearerMiddleware`/`Protect` guard a server and
+    `ProtectedResourceMetadata` serves the RFC 9728 discovery document.
+  - `middleware` — a server-side middleware pipeline (`Middleware`, `Chain`,
+    `Handler`, `Dispatcher`) with built-ins: logging, timing, rate limiting,
+    panic recovery, error mapping and metrics.
+  - `proxy` — `New` builds a server that transparently forwards every request to
+    a backend MCP server reached through a `client.Client`, discovering the
+    backend's tools, resources and prompts at construction.
+  - `openapi` — `FromOpenAPI` generates a server from an OpenAPI 3 document,
+    registering one tool per operation with an input schema assembled from its
+    parameters and request body and a handler that performs the real HTTP call.
+  - `mount` — `Import`/`Mount` compose several servers behind one parent,
+    exposing their tools, resources, resource templates and prompts (mirrors
+    `import_server` and `mount`).
+  - `transport` — `InMemory` wires a `client.Client` directly to a root server
+    in-process with no sockets, subprocess or network (the Go analogue of
+    `FastMCPTransport`), ideal for tests and same-address-space composition.
+  - `elicit` — server-side elicitation: a handler asks the connected client to
+    collect structured input mid-request, with `SchemaFromStruct` deriving the
+    request schema from a Go struct.
+  - `contrib` — optional higher-level batteries: a bulk tool caller
+    (`BulkToolCaller`/`CallToolsBulk`), retry/timeout wrappers and an
+    `MCPMixin` helper.
+
 ## [0.2.0] - 2026-07-12
 ### Added
 - MCP client (`client` subpackage): connects over stdio (attached streams or a

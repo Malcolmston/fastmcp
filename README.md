@@ -188,6 +188,44 @@ Over the bidirectional stdio transport the client answers the server's
 `client.WithSamplingHandler` and `client.WithRoots` / `client.WithRootsHandler`,
 and receives server notifications through `client.WithNotificationHandler`.
 
+## Framework subpackages
+
+Around the root server and `client` sit eight framework subpackages that mirror
+Python FastMCP 2.x. Each is standard-library-only, imports only the root
+`fastmcp` package (and at most one sibling), and carries full godoc, tests and
+runnable examples. Import the ones you need:
+
+```go
+import (
+    "github.com/malcolmston/fastmcp"
+    "github.com/malcolmston/fastmcp/auth"
+    "github.com/malcolmston/fastmcp/middleware"
+)
+```
+
+- **`auth`** — token-based authentication. A small `TokenVerifier` turns a
+  bearer token into a validated `AccessToken` (subject, scopes, expiry); ships
+  `StaticTokenVerifier` and a `JWTVerifier` (HS256 + RS256 via local keys or a
+  remote JWKS). `BearerMiddleware`/`Protect` guard a server and
+  `ProtectedResourceMetadata` serves the RFC 9728 discovery document.
+- **`middleware`** — a server-side middleware pipeline (`Middleware`, `Chain`,
+  `Handler`, `Dispatcher`) with built-ins for logging, timing, rate limiting,
+  panic recovery, error mapping and metrics.
+- **`proxy`** — `New` builds a server that transparently forwards every request
+  to a backend MCP server reached through a `client.Client`, discovering its
+  tools, resources and prompts at construction.
+- **`openapi`** — `FromOpenAPI` generates a server from an OpenAPI 3 document,
+  one tool per operation, with a handler that performs the real HTTP call.
+- **`mount`** — `Import`/`Mount` compose several servers behind one parent
+  (mirrors `import_server` and `mount`).
+- **`transport`** — `InMemory` wires a `client.Client` directly to a server
+  in-process, with no sockets, subprocess or network (the Go analogue of
+  `FastMCPTransport`).
+- **`elicit`** — server-side elicitation: a handler asks the client to collect
+  structured input mid-request, with `SchemaFromStruct` deriving the schema.
+- **`contrib`** — optional batteries: a bulk tool caller, retry/timeout wrappers
+  and an `MCPMixin` helper.
+
 ## Documentation
 
 - Full API reference on [pkg.go.dev](https://pkg.go.dev/github.com/malcolmston/fastmcp).

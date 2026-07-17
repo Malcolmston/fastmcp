@@ -107,10 +107,47 @@
 //
 // # Client
 //
-// The subpackage github.com/malcolmston/fastmcp/client provides an MCP client
+// The subpackage [github.com/malcolmston/fastmcp/client] provides an MCP client
 // that connects over stdio (attached streams or a spawned process) or Streamable
 // HTTP, correlates JSON-RPC ids, answers server sampling and roots requests, and
 // delivers server notifications.
+//
+// # Framework subpackages
+//
+// Beyond the core server and [github.com/malcolmston/fastmcp/client], eight
+// framework subpackages mirror the corresponding features of Python's FastMCP
+// 2.x. Each is standard-library-only and builds on the root package (plus, at
+// most, the client):
+//
+//   - [github.com/malcolmston/fastmcp/auth] — token-based authentication. A
+//     small TokenVerifier interface turns a bearer token into a validated
+//     AccessToken; StaticTokenVerifier and a JWTVerifier (HS256/RS256, with a
+//     shared secret, RSA key, or remote JWKS) are provided. BearerMiddleware and
+//     Protect guard an HTTP-served server and publish RFC 9728 protected-resource
+//     metadata.
+//   - [github.com/malcolmston/fastmcp/middleware] — a server-side middleware
+//     pipeline (Middleware, Chain, Dispatcher) with a generic and
+//     operation-specific hooks, shipping logging, timing, rate-limiting, panic
+//     recovery, error-mapping and metrics middlewares.
+//   - [github.com/malcolmston/fastmcp/proxy] — proxy.New builds a server that
+//     transparently forwards every request to a backend reached through a
+//     client.Client, re-advertising the backend's tools, resources and prompts.
+//   - [github.com/malcolmston/fastmcp/openapi] — openapi.FromOpenAPI generates a
+//     server from an OpenAPI 3 document, registering one tool per operation whose
+//     handler performs the real upstream HTTP call.
+//   - [github.com/malcolmston/fastmcp/mount] — Import (a one-time copy) and Mount
+//     (a live passthrough) compose several child servers behind one parent under
+//     a name prefix.
+//   - [github.com/malcolmston/fastmcp/transport] — an in-memory, in-process
+//     transport that wires a client.Client directly to a Server with no sockets,
+//     subprocess or network (transport.InMemory / Connect), ideal for tests and
+//     same-address-space composition.
+//   - [github.com/malcolmston/fastmcp/elicit] — server-side elicitation: a
+//     handler asks the connected client to collect structured input mid-request,
+//     with SchemaFromStruct deriving the request schema from a Go struct.
+//   - [github.com/malcolmston/fastmcp/contrib] — optional higher-level batteries:
+//     a bulk tool caller (BulkToolCaller, CallToolsBulk), retry/timeout call
+//     wrappers, and an MCPMixin for grouping tool registrations.
 //
 // The framework depends only on the Go standard library.
 package fastmcp

@@ -13,25 +13,26 @@ export const FASTMCP: Lib = {
   pkg:"github.com/malcolmston/fastmcp", node:"jlowin/fastmcp",
   repo:"https://github.com/malcolmston/fastmcp", docs:"https://malcolmston.github.io/fastmcp/",
   tagline:"Model Context Protocol servers in Go.",
-  blurb:"A from-scratch, standard-library-only Go framework for building Model Context Protocol (MCP) servers. "+
-    "Register plain Go functions as tools, URI-addressable resources (and parameterized templates), and reusable "+
-    "prompt templates — FastMCP handles JSON-RPC, capability negotiation, reflected JSON schemas and transport "+
-    "plumbing, over stdio or Streamable HTTP. A faithful, idiomatic port of Python's FastMCP — with a "+
-    "matching client and eight framework subpackages (auth, middleware, proxy, OpenAPI, mounting, "+
-    "in-memory transport, elicitation and contrib) mirroring FastMCP 2.x.",
-  tags:["JSON-RPC 2.0","tools","resources","prompts","stdio","HTTP/SSE","reflected schemas","auth","middleware","proxy","OpenAPI"],
+  blurb:"A from-scratch, standard-library-only Go framework for building Model Context Protocol (MCP) servers, "+
+    "an idiomatic port of Python's FastMCP 2.x. Register plain Go functions as tools, URI-addressable resources "+
+    "(and parameterized templates), and reusable prompt templates — FastMCP handles JSON-RPC, capability "+
+    "negotiation, reflected JSON schemas, progress, completion, sampling and transport plumbing over stdio or "+
+    "Streamable HTTP. Ships a matching MCP client plus eight framework subpackages — auth, middleware, proxy, "+
+    "OpenAPI generation, server mounting, in-memory transport, elicitation and contrib — with zero third-party "+
+    "dependencies.",
+  tags:["MCP","JSON-RPC 2.0","tools","resources","prompts","Streamable HTTP","auth","middleware","proxy","OpenAPI"],
   features:[
-    "<code>JSON-RPC 2.0</code> — the full wire protocol, including batch requests and notifications",
-    "<code>MCP</code> capability negotiation (<code>initialize</code>), discovery and invocation",
+    "<code>JSON-RPC 2.0</code> wire protocol (batch requests, notifications) with <code>MCP</code> capability negotiation (<code>initialize</code>), discovery and invocation",
     "Register plain Go functions as <code>Tool</code>, <code>Resource</code>, <code>ResourceTemplate</code> and <code>Prompt</code>",
     "<code>stdio</code> and Streamable <code>HTTP</code> transports (POST for messages, GET/SSE for the server channel)",
     "Reflection-based JSON input schemas from your Go argument struct via <code>json</code> / <code>jsonschema</code> tags",
+    "Progress (<code>Context.Progress</code>), argument completion, resource subscriptions and server-to-client sampling (<code>Context.CreateMessage</code>)",
     "A companion <code>client</code> package that talks to any MCP server over stdio or Streamable HTTP",
-    "<b>auth</b> — bearer-token verification with <code>StaticTokenVerifier</code> and a <code>JWTVerifier</code> (HS256/RS256/JWKS) + RFC 9728 metadata",
-    "<b>middleware</b> — a server-side pipeline with logging, timing, rate-limiting, recovery, error-mapping and metrics",
-    "<b>proxy</b> / <b>mount</b> — forward to a backend server or compose several servers behind one parent",
-    "<b>openapi</b> — generate a server from an OpenAPI 3 document, one tool per operation, calling the real HTTP API",
-    "<b>transport</b> / <b>elicit</b> / <b>contrib</b> — in-process transport, server-side elicitation and a bulk tool caller",
+    "<b>auth</b> — bearer-token verification with <code>StaticTokenVerifier</code> and a <code>JWTVerifier</code> (HS256/RS256/JWKS), <code>BearerMiddleware</code> + RFC 9728 metadata",
+    "<b>middleware</b> — a <code>Chain</code>/<code>Dispatcher</code> pipeline with logging, timing, rate-limiting, recovery, error-mapping and metrics",
+    "<b>proxy</b> / <b>mount</b> — <code>proxy.New</code> forwards to a backend server; <code>Import</code>/<code>Mount</code> compose several servers behind one parent",
+    "<b>openapi</b> — <code>FromOpenAPI</code> generates a server from an OpenAPI 3 document, one tool per operation, calling the real HTTP API",
+    "<b>transport</b> / <b>elicit</b> / <b>contrib</b> — in-process <code>InMemory</code> transport, server-side elicitation and a <code>BulkToolCaller</code>",
     "Zero dependencies — pure Go standard library, nothing to audit but the toolchain"
   ],
   node_code:

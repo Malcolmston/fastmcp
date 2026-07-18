@@ -2,14 +2,26 @@ package fastmcp
 
 import "encoding/json"
 
-// Content is a single piece of MCP content, such as a block of text or an
-// embedded image. The Type field selects which of the remaining fields are
-// meaningful ("text", "image", ...).
+// Content is a single piece of MCP content, such as a block of text, an
+// embedded image or audio clip, a link to a resource, or an embedded resource.
+// The Type field selects which of the remaining fields are meaningful ("text",
+// "image", "audio", "resource_link", "resource").
 type Content struct {
 	Type     string `json:"type"`
 	Text     string `json:"text,omitempty"`
 	Data     string `json:"data,omitempty"`
 	MIMEType string `json:"mimeType,omitempty"`
+
+	// URI and Name are populated for "resource_link" content blocks.
+	URI  string `json:"uri,omitempty"`
+	Name string `json:"name,omitempty"`
+
+	// Resource is populated for "resource" (embedded resource) content blocks.
+	Resource *ResourceContents `json:"resource,omitempty"`
+
+	// Annotations carries optional client hints (intended audience and
+	// display priority) about the block. It is nil when unset.
+	Annotations *ContentAnnotations `json:"annotations,omitempty"`
 }
 
 // NewTextContent returns a text Content block.

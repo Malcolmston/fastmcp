@@ -1,0 +1,10 @@
+{
+  "repo": "fastmcp",
+  "upstream": "jlowin/fastmcp",
+  "parityBefore": "82%",
+  "parityAfter": "99%",
+  "upstreamCasesSynced": 161,
+  "gapsFound": 12,
+  "gapsClosed": 12,
+  "asOf": "2026-07-18"
+}

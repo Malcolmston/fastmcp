@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-18
+### Added
+- Four new standard-library-only packages plus richer core content types,
+  moving the port closer to Python FastMCP parity (all with full godoc,
+  deterministic known-answer tests and benchmarks; ~104 new exported symbols):
+  - `uritemplate` — a from-scratch RFC 6570 URI Template implementation.
+    `Expand` covers all four levels and every operator (`{var}`, `{+var}`,
+    `{#var}`, `{.var}`, `{/var}`, `{;var}`, `{?var}`, `{&var}`) with prefix
+    (`:n`) and explode (`*`) modifiers, verified against the RFC's example
+    vectors; `Match`/`Regexp` reverse the simple, reserved and path operators to
+    extract variables from a concrete URI (the subset MCP resource templates
+    use). Replaces the ad-hoc `{var}`-only matching with a spec-complete engine.
+  - `jsonschema` — a fluent JSON Schema builder (`Object`, `String`, `Integer`,
+    `Array`, `Enum`, `AnyOf`/`OneOf`/`AllOf`, chained constraint setters) and a
+    validator (`Schema.Validate`, `ValidateJSON`, and free `Validate` against a
+    raw schema map) covering types, `required`, `properties`,
+    `additionalProperties`, numeric/string/array bounds, `pattern`, `enum`,
+    `const`, `uniqueItems`, `multipleOf` and the combinators. Lets a server
+    validate incoming tool arguments against a tool's reflected input schema.
+  - `mcperror` — the JSON-RPC 2.0 / MCP error taxonomy as a typed `Error`
+    (code, message, data) with the standard and MCP-specific code constants,
+    constructor helpers (`ParseError`, `InvalidParams`, `MethodNotFound`,
+    `ResourceNotFound`, `RequestCancelled`, ...), `errors.Is`/`As` support,
+    `FromError`, `Code` and `CodeText`.
+  - `mcplog` — the MCP logging model: the eight RFC 5424 severity `Level`s with
+    JSON (de)serialization, threshold filtering and severity mapping, the
+    `Message` log record, and a concurrency-safe `Logger` with a settable
+    minimum level (`logging/setLevel`) and `Debug`/`Info`/`Warning`/`Err`/... 
+    convenience methods that funnel records to a caller-supplied sink.
+  - core `Content` — new MCP content-block constructors `NewAudioContent`,
+    `NewResourceLink`, `NewEmbeddedResource` and `NewEmbeddedBlobResource`, the
+    `ResourceContents` and `ContentAnnotations` types, block-annotation helpers
+    (`WithAnnotations`/`WithPriority`/`WithAudience`) and `IsText`/`IsImage`/
+    `IsAudio`/`IsResource` predicates. New `Content` fields are `omitempty`, so
+    existing text/image serialization is unchanged.
+
 ## [0.3.0] - 2026-07-17
 ### Added
 - Eight framework subpackages mirroring Python FastMCP 2.x, each

@@ -114,65 +114,82 @@ func validateValue(schema map[string]any, v any, path string) error {
 		}
 	}
 
-	// Type-specific checks.
-	if t, ok := schema["type"].(string); ok {
-		if err := validateType(t, v, path); err != nil {
+	// Type check. "type" may be a single name or a list of acceptable names.
+	if raw, ok := schema["type"]; ok {
+		if err := validateTypeAny(raw, v, path); err != nil {
 			return err
 		}
-		switch t {
-		case "object":
-			if err := validateObject(schema, v, path); err != nil {
-				return err
-			}
-		case "array":
-			if err := validateArray(schema, v, path); err != nil {
-				return err
-			}
-		case "string":
-			if err := validateString(schema, v, path); err != nil {
-				return err
-			}
-		case "integer", "number":
-			if err := validateNumber(schema, v, path); err != nil {
-				return err
+	}
+
+	// Shape-based constraints. Each helper is a no-op when the value is not of
+	// the relevant kind, so we apply them regardless of whether an explicit
+	// "type" is present: keywords like minimum, minLength, minItems and
+	// properties constrain matching values even on untyped schemas, matching
+	// upstream JSON Schema semantics.
+	if err := validateObject(schema, v, path); err != nil {
+		return err
+	}
+	if err := validateArray(schema, v, path); err != nil {
+		return err
+	}
+	if err := validateString(schema, v, path); err != nil {
+		return err
+	}
+	if err := validateNumber(schema, v, path); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateTypeAny validates the "type" keyword, which upstream permits to be
+// either a single type name or a list of acceptable names (the value passes
+// when it matches at least one).
+func validateTypeAny(raw any, v any, path string) error {
+	switch t := raw.(type) {
+	case string:
+		return validateType(t, v, path)
+	case []any:
+		for _, e := range t {
+			if name, ok := e.(string); ok && matchesType(name, v) {
+				return nil
 			}
 		}
-	} else {
-		// No explicit type: still apply object/array constraints when the value
-		// shape matches, so property checks work on untyped schemas.
-		if _, ok := v.(map[string]any); ok {
-			if err := validateObject(schema, v, path); err != nil {
-				return err
-			}
-		}
+		return &ValidationError{Path: path, Message: fmt.Sprintf("expected one of the types %v, got %s", t, jsonType(v))}
 	}
 	return nil
 }
 
 func validateType(t string, v any, path string) error {
-	ok := false
-	switch t {
-	case "object":
-		_, ok = v.(map[string]any)
-	case "array":
-		_, ok = v.([]any)
-	case "string":
-		_, ok = v.(string)
-	case "boolean":
-		_, ok = v.(bool)
-	case "null":
-		ok = v == nil
-	case "number":
-		ok = isNumber(v)
-	case "integer":
-		ok = isInteger(v)
-	default:
-		ok = true
-	}
-	if !ok {
+	if !matchesType(t, v) {
 		return &ValidationError{Path: path, Message: fmt.Sprintf("expected type %q, got %s", t, jsonType(v))}
 	}
 	return nil
+}
+
+// matchesType reports whether v is an instance of the named JSON Schema type.
+func matchesType(t string, v any) bool {
+	switch t {
+	case "object":
+		_, ok := v.(map[string]any)
+		return ok
+	case "array":
+		_, ok := v.([]any)
+		return ok
+	case "string":
+		_, ok := v.(string)
+		return ok
+	case "boolean":
+		_, ok := v.(bool)
+		return ok
+	case "null":
+		return v == nil
+	case "number":
+		return isNumber(v)
+	case "integer":
+		return isInteger(v)
+	default:
+		return true
+	}
 }
 
 func validateObject(schema map[string]any, v any, path string) error {

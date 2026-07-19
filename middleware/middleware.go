@@ -73,6 +73,7 @@ type funcMiddleware struct {
 	f RequestFunc
 }
 
+// OnRequest invokes the wrapped RequestFunc for the request.
 func (m funcMiddleware) OnRequest(mc *MiddlewareContext, next Handler) *fastmcp.Response {
 	return m.f(mc, next)
 }

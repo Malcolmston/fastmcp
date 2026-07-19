@@ -216,7 +216,10 @@ func (t *Template) Expand(vars map[string]any) (string, error) {
 	var b strings.Builder
 	for _, p := range t.parts {
 		if p.expr == nil {
-			b.WriteString(p.literal)
+			// RFC 6570 section 3.1: literal characters outside the allowed
+			// set are UTF-8 pct-encoded, while reserved characters and
+			// existing pct-encoded triplets are copied verbatim.
+			b.WriteString(utEncode(p.literal, "U+R"))
 			continue
 		}
 		if err := utExpandExpr(&b, p.expr, vars); err != nil {
@@ -261,7 +264,7 @@ func utExpandExpr(b *strings.Builder, e *utExpr, vars map[string]any) error {
 				s = string([]rune(s)[:v.prefix])
 			}
 			if cfg.named {
-				b.WriteString(utEncode(v.name, "U"))
+				b.WriteString(v.name) // RFC 6570: varname emitted verbatim
 				if s == "" {
 					b.WriteString(cfg.ifEmpty)
 				} else {
@@ -283,7 +286,7 @@ func utExpandExpr(b *strings.Builder, e *utExpr, vars map[string]any) error {
 func utExpandList(b *strings.Builder, v utVar, cfg utOpCfg, items []string) {
 	if !v.explode {
 		if cfg.named {
-			b.WriteString(utEncode(v.name, "U"))
+			b.WriteString(v.name) // RFC 6570: varname emitted verbatim
 			if len(items) == 0 {
 				b.WriteString(cfg.ifEmpty)
 				return
@@ -304,7 +307,7 @@ func utExpandList(b *strings.Builder, v utVar, cfg utOpCfg, items []string) {
 			b.WriteString(cfg.sep)
 		}
 		if cfg.named {
-			b.WriteString(utEncode(v.name, "U"))
+			b.WriteString(v.name) // RFC 6570: varname emitted verbatim
 			if it == "" {
 				b.WriteString(cfg.ifEmpty)
 			} else {
@@ -320,7 +323,7 @@ func utExpandList(b *strings.Builder, v utVar, cfg utOpCfg, items []string) {
 func utExpandMap(b *strings.Builder, v utVar, cfg utOpCfg, pairs utPairs) {
 	if !v.explode {
 		if cfg.named {
-			b.WriteString(utEncode(v.name, "U"))
+			b.WriteString(v.name) // RFC 6570: varname emitted verbatim
 			if len(pairs) == 0 {
 				b.WriteString(cfg.ifEmpty)
 				return

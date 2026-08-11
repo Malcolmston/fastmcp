@@ -11,7 +11,7 @@
 [![Code Size](https://img.shields.io/github/languages/code-size/Malcolmston/fastmcp)](https://github.com/Malcolmston/fastmcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Docs](https://img.shields.io/badge/docs-pages-2f9bff)](https://malcolmston.github.io/fastmcp/)
+[![Docs](https://img.shields.io/badge/docs-vercel-2f9bff)](https://go-malcolms-projects-18e573c3.vercel.app/lib/fastmcp)
 
 A from-scratch, standard-library-only Go framework for building Model Context Protocol (MCP) servers — an idiomatic Go port of Python's [FastMCP](https://github.com/jlowin/fastmcp).
 
@@ -78,14 +78,20 @@ The server speaks newline-delimited JSON-RPC on stdin/stdout. Send it an
   The stdio transport is fully bidirectional.
 - **MCP client** — a companion [`client`](client) package connects to any MCP
   server over stdio (attached streams or a spawned subprocess) or Streamable
-  HTTP: `Initialize`, `ListTools`, `CallTool`, `ListResources`, `ReadResource`,
-  `ListPrompts`, `GetPrompt`, `Ping`, and more.
+  HTTP: `Initialize`, `ListTools`, `CallTool`, `ListResources`,
+  `ListResourceTemplates`, `ReadResource`, `ListPrompts`, `GetPrompt`,
+  `SetLoggingLevel`, `Ping`, and more.
 - **Progress notifications** — handlers report incremental progress with
   `Context.Progress`, correlated with the caller's progress token.
 - **List-changed & subscriptions** — broadcast `notifications/*/list_changed`
   with `NotifyToolsChanged` / `NotifyResourcesChanged` / `NotifyPromptsChanged`,
   and deliver `notifications/resources/updated` to `resources/subscribe`rs via
   `NotifyResourceUpdated`.
+- **Client-controlled logging** — handlers emit `notifications/message` records
+  with `Context.Log` (and `Debug`/`Info`/`Warning`/`Error`); a client narrows
+  the stream with `logging/setLevel` and records below its chosen severity are
+  dropped. `Context.LogLevel` / `Context.LogEnabled` expose the active
+  threshold.
 - **Completion** — answer `completion/complete` for prompt arguments and
   resource-template variables with a registerable callback.
 - **Structured tool output** — `ToolWithOutput` reflects an output schema from
@@ -213,7 +219,7 @@ import (
   panic recovery, error mapping and metrics.
 - **`proxy`** — `New` builds a server that transparently forwards every request
   to a backend MCP server reached through a `client.Client`, discovering its
-  tools, resources and prompts at construction.
+  tools, resources, resource templates and prompts at construction.
 - **`openapi`** — `FromOpenAPI` generates a server from an OpenAPI 3 document,
   one tool per operation, with a handler that performs the real HTTP call.
 - **`mount`** — `Import`/`Mount` compose several servers behind one parent
@@ -229,7 +235,7 @@ import (
 ## Documentation
 
 - Full API reference on [pkg.go.dev](https://pkg.go.dev/github.com/malcolmston/fastmcp).
-- Docs site: <https://malcolmston.github.io/fastmcp/>.
+- Docs site: <https://go-malcolms-projects-18e573c3.vercel.app/lib/fastmcp>.
 
 ## License
 
